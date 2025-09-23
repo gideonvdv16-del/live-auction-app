@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Live Auction</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    body { margin: 0; background: #0f172a; color: #e5e7eb; }
+    header { padding: 16px 20px; background: #111827; display: flex; align-items: center; gap: 12px; }
+    h1 { margin: 0; font-size: 20px; }
+    main { display: grid; grid-template-columns: 1fr 360px; gap: 16px; padding: 16px; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 14px; padding: 16px; }
+    .item { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 12px; border: 1px solid #1f2937; border-radius: 12px; margin-bottom: 10px; background: #0b1220; }
+    .muted { color: #94a3b8; font-size: 12px; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    input, button, select, textarea {
+      background: #0b1220; color: #e5e7eb; border: 1px solid #1f2937; border-radius: 10px; padding: 10px 12px;
+    }
+    button { cursor: pointer; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .list { max-height: 70vh; overflow: auto; padding-right: 4px; }
+    small { color: #94a3b8; }
+    .pill { background:#1f2937; padding:4px 8px; border-radius:999px; font-size:12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Live Auction</h1>
+    <span class="pill">MVP</span>
+    <div class="row" style="margin-left:auto;">
+      <label for="displayName"><small>Your name:</small></label>
+      <input id="displayName" placeholder="e.g. Gideon" />
+      <button id="saveNameBtn">Save</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Items</h2>
+      <div id="items" class="list"></div>
+    </section>
+
+    <section class="card">
+      <h2>Bid Panel</h2>
+      <div class="row">
+        <label for="itemSelect">Item</label>
+        <select id="itemSelect"></select>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <input id="bidAmount" type="number" step="1" min="0" placeholder="Enter your bid (R)" />
+        <button id="bidBtn">Place Bid</button>
+      </div>
+      <p id="bidError" style="color:#fca5a5;min-height:20px;"></p>
+
+      <hr style="border-color:#1f2937;margin:16px 0;" />
+
+      <h3>Quick Admin (MVP)</h3>
+      <small class="muted">This is not secured—anyone can add items. Secure it later.</small>
+      <div class="grid-2" style="margin-top:8px;">
+        <input id="newTitle" placeholder="Item title" />
+        <input id="newOpeningBid" type="number" step="1" min="0" placeholder="Opening bid (R)" />
+      </div>
+      <textarea id="newDesc" rows="3" placeholder="Description (optional)" style="margin-top:8px;"></textarea>
+      <div class="row" style="margin-top:8px;">
+        <button id="addItemBtn">Add Item</button>
+        <span id="addItemMsg" class="muted"></span>
+      </div>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const itemsDiv = document.getElementById("items");
+    const itemSelect = document.getElementById("itemSelect");
+    const bidBtn = document.getElementById("bidBtn");
+    const bidAmount = document.getElementById("bidAmount");
+    const bidError = document.getElementById("bidError");
+    const displayNameInput = document.getElementById("displayName");
+    const saveNameBtn = document.getElementById("saveNameBtn");
+
+    const newTitle = document.getElementById("newTitle");
+    const newOpeningBid = document.getElementById("newOpeningBid");
+    const newDesc = document.getElementById("newDesc");
+    const addItemBtn = document.getElementById("addItemBtn");
+    const addItemMsg = document.getElementById("addItemMsg");
+
+    let items = [];
+
+    function renderItems() {
+      itemsDiv.innerHTML = "";
+      itemSelect.innerHTML = "";
+
+      items.forEach(item => {
+        const el = document.createElement("div");
+        el.className = "item";
+        el.innerHTML = `
+          <div>
+            <div><strong>${escapeHtml(item.title)}</strong></div>
+            <div class="muted">${escapeHtml(item.description || "")}</div>
+            <div style="margin-top:6px;">
+              <small>Opening: R${num(item.openingBid)} | Current: <strong>R${num(item.currentBid)}</strong> ${item.currentWinner ? `by ${escapeHtml(item.currentWinner)}` : ""}</small>
+            </div>
+          </div>
+          <div class="row">
+            <button data-id="${item.id}" class="chooseBtn">Select</button>
+          </div>
+        `;
+        itemsDiv.appendChild(el);
+
+        const opt = document.createElement("option");
+        opt.value = item.id;
+        opt.textContent = `${item.title} (R${num(item.currentBid)})`;
+        itemSelect.appendChild(opt);
+      });
+
+      // Hook up select buttons
+      document.querySelectorAll(".chooseBtn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          itemSelect.value = btn.getAttribute("data-id");
+          itemSelect.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      });
+    }
+
+    function num(n) {
+      return Number(n).toFixed(2);
+    }
+
+    function escapeHtml(s) {
+      return s?.replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c])) || "";
+    }
+
+    // Socket events
+    socket.on("items", (serverItems) => {
+      items = serverItems;
+      renderItems();
+    });
+
+    socket.on("bidUpdate", (payload) => {
+      const { itemId, currentBid, currentWinner } = payload;
+      const idx = items.findIndex(i => i.id === itemId);
+      if (idx >= 0) {
+        items[idx].currentBid = currentBid;
+        items[idx].currentWinner = currentWinner;
+        renderItems();
+      }
+    });
+
+    // Save/display name
+    saveNameBtn.addEventListener("click", () => {
+      const name = displayNameInput.value.trim() || "Anonymous";
+      socket.emit("join", name);
+      saveNameBtn.textContent = "Saved";
+      setTimeout(() => saveNameBtn.textContent = "Save", 1200);
+    });
+
+    // Place bid
+    bidBtn.addEventListener("click", () => {
+      bidError.textContent = "";
+      const id = Number(itemSelect.value);
+      const amount = Number(bidAmount.value);
+      let name = displayNameInput.value.trim();
+      if (!name) {
+        name = "Anonymous";
+        displayNameInput.value = name;
+        socket.emit("join", name);
+      }
+      socket.emit("placeBid", { itemId: id, amount, name }, (res) => {
+        if (!res?.ok) {
+          bidError.textContent = res?.error || "Unknown error placing bid.";
+        } else {
+          bidAmount.value = "";
+        }
+      });
+    });
+
+    // Admin add item
+    addItemBtn.addEventListener("click", () => {
+      addItemMsg.textContent = "";
+      const title = newTitle.value.trim();
+      const openingBid = Number(newOpeningBid.value);
+      const description = newDesc.value.trim();
+
+      socket.emit("createItem", { title, openingBid, description }, (res) => {
+        if (!res?.ok) {
+          addItemMsg.textContent = res?.error || "Failed to add item.";
+        } else {
+          newTitle.value = "";
+          newOpeningBid.value = "";
+          newDesc.value = "";
+          addItemMsg.textContent = "Item added.";
+          setTimeout(() => addItemMsg.textContent = "", 1500);
+        }
+      });
+    });
+
+    // Auto-join with cached name if present
+    (function initName() {
+      const saved = localStorage.getItem("auctionDisplayName");
+      if (saved) {
+        displayNameInput.value = saved;
+        socket.emit("join", saved);
+      }
+      displayNameInput.addEventListener("change", () => {
+        localStorage.setItem("auctionDisplayName", displayNameInput.value.trim());
+      });
+    })();
+  </script>
+</body>
+</html>
