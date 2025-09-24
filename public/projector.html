@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Auction Projector</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { margin:0; background:#000; color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    .wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding:24px; }
+    .card { width:min(1200px, 95vw); background:#0b0b0b; border: 1px solid #222; border-radius:16px; padding:24px; }
+    .row { display:flex; gap:16px; align-items:center; }
+    .title { font-size: clamp(28px, 5vw, 56px); font-weight:800; margin:0; }
+    .muted { color:#b0b0b0; font-size: clamp(14px, 2vw, 18px); }
+    .price { font-size: clamp(28px, 6vw, 72px); font-weight:800; margin-top:16px; }
+    .img { width: clamp(200px, 35vw, 420px); height: clamp(160px, 30vw, 320px); object-fit: cover; border-radius: 12px; border: 1px solid #222; background:#111; }
+    .badge { background:#222; border-radius:999px; padding:8px 14px; font-size: clamp(12px, 2vw, 18px); }
+    .time { font-size: clamp(18px, 4vw, 36px); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div id="content">
+        <div class="muted">Waiting for current lot…</div>
+      </div>
+    </div>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let items = [];
+    let currentLotId = null;
+
+    function render() {
+      const c = document.getElementById("content");
+      const item = items.find(i => i.id === currentLotId);
+      if (!item) {
+        c.innerHTML = `<div class="muted">Waiting for current lot…</div>`;
+        return;
+      }
+      const photo = item.imageUrl ? `<img class="img" src="${item.imageUrl}" alt="photo" />` : "";
+      const timeLeft = item.endTime ? `<span id="timeleft"></span>` : "";
+
+      c.innerHTML = `
+        <div class="row">
+          ${photo}
+          <div>
+            <h1 class="title">${item.title}</h1>
+            <div class="muted">${item.description || ""}</div>
+            <div class="row" style="margin-top:10px;">
+              <span class="badge">Status: ${item.status}</span>
+              ${item.endTime ? `<span class="badge time">Time left: ${timeLeft}</span>` : ""}
+            </div>
+            <div class="price">R${Number(item.currentBid).toFixed(2)} ${item.currentWinner ? `<span class="muted">by ${item.currentWinner}</span>` : ""}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderCountdown() {
+      const item = items.find(i => i.id === currentLotId);
+      const node = document.getElementById("timeleft");
+      if (!node || !item || !item.endTime) return;
+      const ms = item.endTime - Date.now();
+      node.textContent = (ms <= 0) ? "0s" : `${Math.ceil(ms/1000)}s`;
+    }
+    setInterval(renderCountdown, 500);
+
+    socket.on("items", (serverItems) => { items = serverItems; render(); });
+    socket.on("itemUpdated", (item) => {
+      const idx = items.findIndex(i => i.id === item.id);
+      if (idx >= 0) items[idx] = item; else items.push(item);
+      render();
+    });
+    socket.on("configUpdated", (cfg) => {
+      currentLotId = cfg?.currentLotId ?? null;
+      render();
+    });
+
+    // Authenticate as viewer/bidder (no admin rights, ensures server sends state)
+    socket.emit("auth", { role: "bidder" }, () => {});
+  </script>
+</body>
+</html>

@@ -22,18 +22,44 @@
     .list { max-height: 70vh; overflow: auto; padding-right: 4px; }
     small { color: #94a3b8; }
     .pill { background:#1f2937; padding:4px 8px; border-radius:999px; font-size:12px; }
+    .img { width: 90px; height: 70px; object-fit: cover; border-radius: 8px; border: 1px solid #1f2937; }
+    /* Modal */
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; }
+    .modal > .card { width: 420px; }
+    #adminOnly { display: none; }
   </style>
 </head>
 <body>
   <header>
     <h1>Live Auction</h1>
-    <span class="pill">MVP</span>
+    <span class="pill">Roles</span>
     <div class="row" style="margin-left:auto;">
       <label for="displayName"><small>Your name:</small></label>
       <input id="displayName" placeholder="e.g. Gideon" />
       <button id="saveNameBtn">Save</button>
+      <a href="/projector.html" style="margin-left:8px; text-decoration:none;"><button>Projector View</button></a>
+      <a href="/export.csv" style="margin-left:8px; text-decoration:none;"><button>Export CSV</button></a>
     </div>
   </header>
+
+  <!-- Login modal -->
+  <div id="loginModal" class="modal">
+    <div class="card">
+      <h2>Sign in</h2>
+      <div class="row" style="margin-top:8px;">
+        <label><input type="radio" name="role" value="bidder" checked /> Bidder</label>
+        <label><input type="radio" name="role" value="admin" /> Admin</label>
+      </div>
+      <div id="adminPwRow" class="row" style="margin-top:8px; display:none;">
+        <input id="adminPassword" placeholder="Admin password (1234)" />
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button id="loginBtn">Enter</button>
+        <span id="loginMsg" class="muted"></span>
+      </div>
+      <small class="muted">Admin can add items, set timers, upload photos, mark sold, set current lot. Bidders can place bids.</small>
+    </div>
+  </div>
 
   <main>
     <section class="card">
@@ -55,16 +81,54 @@
 
       <hr style="border-color:#1f2937;margin:16px 0;" />
 
-      <h3>Quick Admin (MVP)</h3>
-      <small class="muted">This is not secured—anyone can add items. Secure it later.</small>
-      <div class="grid-2" style="margin-top:8px;">
-        <input id="newTitle" placeholder="Item title" />
-        <input id="newOpeningBid" type="number" step="1" min="0" placeholder="Opening bid (R)" />
-      </div>
-      <textarea id="newDesc" rows="3" placeholder="Description (optional)" style="margin-top:8px;"></textarea>
-      <div class="row" style="margin-top:8px;">
-        <button id="addItemBtn">Add Item</button>
-        <span id="addItemMsg" class="muted"></span>
+      <div id="adminOnly">
+        <h3>Admin Controls</h3>
+        <div class="grid-2" style="margin-top:8px;">
+          <input id="newTitle" placeholder="Item title" />
+          <input id="newOpeningBid" type="number" step="1" min="0" placeholder="Opening bid (R)" />
+        </div>
+        <textarea id="newDesc" rows="3" placeholder="Description (optional)" style="margin-top:8px;"></textarea>
+
+        <div class="row" style="margin-top:8px;">
+          <input id="photoFile" type="file" accept="image/*" />
+          <button id="uploadPhotoBtn">Upload Photo</button>
+          <span id="photoMsg" class="muted"></span>
+        </div>
+
+        <div class="row" style="margin-top:8px;">
+          <button id="addItemBtn">Add Item</button>
+          <span id="addItemMsg" class="muted"></span>
+        </div>
+
+        <hr style="border-color:#1f2937;margin:16px 0;" />
+
+        <h4>Global Minimum Increment</h4>
+        <div class="row">
+          <input id="minIncrement" type="number" step="1" min="0" placeholder="Min increment (R)" />
+          <button id="saveMinIncBtn">Save Increment</button>
+        </div>
+
+        <h4 style="margin-top:14px;">Item Controls</h4>
+        <div class="row">
+          <label for="adminItemSelect"><small>Item:</small></label>
+          <select id="adminItemSelect"></select>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <button data-dur="60" id="start60">Start 60s</button>
+          <button data-dur="120" id="start120">Start 120s</button>
+          <button id="stopTimer">Stop Timer</button>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <button id="markSold">Mark Sold</button>
+          <button id="reopen">Reopen</button>
+        </div>
+
+        <h4 style="margin-top:14px;">Projector: Current Lot</h4>
+        <div class="row">
+          <button id="setCurrentLot">Set Current Lot to Selected</button>
+        </div>
+
+        <span id="adminMsg" class="muted"></span>
       </div>
     </section>
   </main>
@@ -85,20 +149,89 @@
     const newDesc = document.getElementById("newDesc");
     const addItemBtn = document.getElementById("addItemBtn");
     const addItemMsg = document.getElementById("addItemMsg");
+    const adminOnly = document.getElementById("adminOnly");
 
+    const minIncrement = document.getElementById("minIncrement");
+    const saveMinIncBtn = document.getElementById("saveMinIncBtn");
+    const adminItemSelect = document.getElementById("adminItemSelect");
+    const start60 = document.getElementById("start60");
+    const start120 = document.getElementById("start120");
+    const stopTimerBtn = document.getElementById("stopTimer");
+    const markSoldBtn = document.getElementById("markSold");
+    const reopenBtn = document.getElementById("reopen");
+    const setCurrentLotBtn = document.getElementById("setCurrentLot");
+    const adminMsg = document.getElementById("adminMsg");
+
+    const loginModal = document.getElementById("loginModal");
+    const loginBtn = document.getElementById("loginBtn");
+    const loginMsg = document.getElementById("loginMsg");
+    const adminPwRow = document.getElementById("adminPwRow");
+    const adminPassword = document.getElementById("adminPassword");
+
+    const photoFile = document.getElementById("photoFile");
+    const uploadPhotoBtn = document.getElementById("uploadPhotoBtn");
+    const photoMsg = document.getElementById("photoMsg");
+    let uploadedImageUrl = null;
+
+    let role = "bidder";
     let items = [];
+    let currentLotId = null;
+
+    // ===== Login flow =====
+    document.querySelectorAll("input[name='role']").forEach(r => {
+      r.addEventListener("change", () => {
+        const val = document.querySelector("input[name='role']:checked").value;
+        adminPwRow.style.display = (val === "admin") ? "flex" : "none";
+      });
+    });
+
+    loginBtn.addEventListener("click", () => {
+      role = document.querySelector("input[name='role']:checked").value;
+      const password = (role === "admin") ? adminPassword.value.trim() : "";
+      socket.emit("auth", { role, password }, (res) => {
+        if (!res?.ok) {
+          loginMsg.textContent = res?.error || "Login failed";
+          return;
+        }
+        role = res.role;
+        adminOnly.style.display = (role === "admin") ? "block" : "none";
+        loginModal.style.display = "none";
+      });
+    });
+
+    // ===== UI helpers =====
+    function num(n) { return Number(n).toFixed(2); }
+    function escapeHtml(s) {
+      return s?.replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c])) || "";
+    }
 
     function renderItems() {
       itemsDiv.innerHTML = "";
       itemSelect.innerHTML = "";
+      if (adminItemSelect) adminItemSelect.innerHTML = "";
 
       items.forEach(item => {
         const el = document.createElement("div");
         el.className = "item";
+        const timeLeft = item.endTime ? `<span class="timeleft" data-id="${item.id}"></span>` : "";
+        const photo = item.imageUrl ? `<img class="img" src="${item.imageUrl}" alt="photo">` : "";
+
         el.innerHTML = `
           <div>
-            <div><strong>${escapeHtml(item.title)}</strong></div>
-            <div class="muted">${escapeHtml(item.description || "")}</div>
+            <div class="row" style="gap:12px;">${photo}
+              <div>
+                <div><strong>${escapeHtml(item.title)}</strong> ${item.id === currentLotId ? '<span class="pill">Current Lot</span>' : ''}</div>
+                <div class="muted">${escapeHtml(item.description || "")}</div>
+              </div>
+            </div>
+            <div style="margin-top:6px;">
+              <small>
+                Status: <strong>${escapeHtml(item.status)}</strong>
+                ${item.endTime ? ` | Time left: ${timeLeft}` : ""}
+              </small>
+            </div>
             <div style="margin-top:6px;">
               <small>Opening: R${num(item.openingBid)} | Current: <strong>R${num(item.currentBid)}</strong> ${item.currentWinner ? `by ${escapeHtml(item.currentWinner)}` : ""}</small>
             </div>
@@ -113,102 +246,175 @@
         opt.value = item.id;
         opt.textContent = `${item.title} (R${num(item.currentBid)})`;
         itemSelect.appendChild(opt);
+
+        if (adminItemSelect) {
+          const opt2 = document.createElement("option");
+          opt2.value = item.id;
+          opt2.textContent = `${item.title} (R${num(item.currentBid)} | ${item.status})`;
+          adminItemSelect.appendChild(opt2);
+        }
       });
 
-      // Hook up select buttons
       document.querySelectorAll(".chooseBtn").forEach(btn => {
         btn.addEventListener("click", () => {
           itemSelect.value = btn.getAttribute("data-id");
           itemSelect.scrollIntoView({ behavior: "smooth", block: "center" });
         });
       });
+
+      renderCountdowns();
     }
 
-    function num(n) {
-      return Number(n).toFixed(2);
+    function renderCountdowns() {
+      const nodes = document.querySelectorAll(".timeleft");
+      const now = Date.now();
+      nodes.forEach(node => {
+        const id = Number(node.getAttribute("data-id"));
+        const item = items.find(i => i.id === id);
+        if (!item || !item.endTime) return (node.textContent = "");
+        const ms = item.endTime - now;
+        node.textContent = (ms <= 0) ? "0s" : `${Math.ceil(ms/1000)}s`;
+      });
     }
+    setInterval(renderCountdowns, 500);
 
-    function escapeHtml(s) {
-      return s?.replace(/[&<>"']/g, (c) => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-      }[c])) || "";
-    }
-
-    // Socket events
-    socket.on("items", (serverItems) => {
-      items = serverItems;
+    // ===== Socket events =====
+    socket.on("items", (serverItems) => { items = serverItems; renderItems(); });
+    socket.on("itemUpdated", (item) => {
+      const idx = items.findIndex(i => i.id === item.id);
+      if (idx >= 0) items[idx] = item; else items.push(item);
       renderItems();
     });
-
-    socket.on("bidUpdate", (payload) => {
-      const { itemId, currentBid, currentWinner } = payload;
-      const idx = items.findIndex(i => i.id === itemId);
-      if (idx >= 0) {
-        items[idx].currentBid = currentBid;
-        items[idx].currentWinner = currentWinner;
-        renderItems();
-      }
+    socket.on("configUpdated", (cfg) => {
+      currentLotId = cfg?.currentLotId ?? null;
+      console.log("Config updated", cfg);
     });
 
-    // Save/display name
+    // ===== Name save & join =====
     saveNameBtn.addEventListener("click", () => {
       const name = displayNameInput.value.trim() || "Anonymous";
       socket.emit("join", name);
+      localStorage.setItem("auctionDisplayName", name);
       saveNameBtn.textContent = "Saved";
-      setTimeout(() => saveNameBtn.textContent = "Save", 1200);
+      setTimeout(() => (saveNameBtn.textContent = "Save"), 1200);
     });
-
-    // Place bid
-    bidBtn.addEventListener("click", () => {
-      bidError.textContent = "";
-      const id = Number(itemSelect.value);
-      const amount = Number(bidAmount.value);
-      let name = displayNameInput.value.trim();
-      if (!name) {
-        name = "Anonymous";
-        displayNameInput.value = name;
-        socket.emit("join", name);
-      }
-      socket.emit("placeBid", { itemId: id, amount, name }, (res) => {
-        if (!res?.ok) {
-          bidError.textContent = res?.error || "Unknown error placing bid.";
-        } else {
-          bidAmount.value = "";
-        }
-      });
-    });
-
-    // Admin add item
-    addItemBtn.addEventListener("click", () => {
-      addItemMsg.textContent = "";
-      const title = newTitle.value.trim();
-      const openingBid = Number(newOpeningBid.value);
-      const description = newDesc.value.trim();
-
-      socket.emit("createItem", { title, openingBid, description }, (res) => {
-        if (!res?.ok) {
-          addItemMsg.textContent = res?.error || "Failed to add item.";
-        } else {
-          newTitle.value = "";
-          newOpeningBid.value = "";
-          newDesc.value = "";
-          addItemMsg.textContent = "Item added.";
-          setTimeout(() => addItemMsg.textContent = "", 1500);
-        }
-      });
-    });
-
-    // Auto-join with cached name if present
     (function initName() {
       const saved = localStorage.getItem("auctionDisplayName");
       if (saved) {
         displayNameInput.value = saved;
         socket.emit("join", saved);
       }
-      displayNameInput.addEventListener("change", () => {
-        localStorage.setItem("auctionDisplayName", displayNameInput.value.trim());
-      });
     })();
+
+    // ===== Bid (only works as bidder; server enforces) =====
+    bidBtn.addEventListener("click", () => {
+      bidError.textContent = "";
+      const id = Number(itemSelect.value);
+      const amount = Number(bidAmount.value);
+      let name = displayNameInput.value.trim() || "Anonymous";
+      socket.emit("join", name);
+      socket.emit("placeBid", { itemId: id, amount, name }, (res) => {
+        if (!res?.ok) bidError.textContent = res?.error || "Unknown error placing bid.";
+        else bidAmount.value = "";
+      });
+    });
+
+    // ===== Admin actions =====
+    function adminResult(msg, isError=false) {
+      adminMsg.textContent = msg;
+      adminMsg.style.color = isError ? "#fca5a5" : "#94a3b8";
+      setTimeout(() => adminMsg.textContent = "", 2000);
+    }
+
+    uploadPhotoBtn?.addEventListener("click", async () => {
+      if (!photoFile.files[0]) return photoMsg.textContent = "Choose a file first";
+      photoMsg.textContent = "Uploading...";
+      const fd = new FormData();
+      fd.append("photo", photoFile.files[0]);
+      // Reuse admin password as token
+      fd.append("adminToken", adminPassword.value.trim() || "");
+      try {
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Upload failed");
+        uploadedImageUrl = data.url;
+        photoMsg.textContent = "Uploaded ✓";
+      } catch (e) {
+        photoMsg.textContent = "Error: " + e.message;
+      }
+    });
+
+    addItemBtn?.addEventListener("click", () => {
+      addItemMsg.textContent = "";
+      const title = newTitle.value.trim();
+      const openingBid = Number(newOpeningBid.value);
+      const description = newDesc.value.trim();
+      const adminToken = adminPassword.value.trim();
+      socket.emit("createItem", { title, openingBid, description, adminToken, imageUrl: uploadedImageUrl }, (res) => {
+        if (!res?.ok) addItemMsg.textContent = res?.error || "Failed to add item.";
+        else {
+          newTitle.value = ""; newOpeningBid.value = ""; newDesc.value = "";
+          uploadedImageUrl = null; photoFile.value = ""; photoMsg.textContent = "";
+          addItemMsg.textContent = "Item added.";
+          setTimeout(() => addItemMsg.textContent = "", 1500);
+        }
+      });
+    });
+
+    saveMinIncBtn?.addEventListener("click", () => {
+      const v = Number(minIncrement.value);
+      const adminToken = adminPassword.value.trim();
+      socket.emit("admin:setMinIncrement", { value: v, adminToken }, (res) => {
+        if (!res?.ok) return adminResult(res?.error || "Failed", true);
+        adminResult(`Min increment set to R${Number(res.MIN_INCREMENT).toFixed(2)}`);
+      });
+    });
+
+    [start60, start120].forEach(btn => btn?.addEventListener("click", () => {
+      const dur = Number(btn.getAttribute("data-dur"));
+      const itemId = Number(adminItemSelect.value);
+      const adminToken = adminPassword.value.trim();
+      socket.emit("admin:startTimer", { itemId, durationSeconds: dur, adminToken }, (res) => {
+        if (!res?.ok) return adminResult(res?.error || "Failed", true);
+        adminResult(`Timer started: ${dur}s`);
+      });
+    }));
+
+    stopTimerBtn?.addEventListener("click", () => {
+      const itemId = Number(adminItemSelect.value);
+      const adminToken = adminPassword.value.trim();
+      socket.emit("admin:stopTimer", { itemId, adminToken }, (res) => {
+        if (!res?.ok) return adminResult(res?.error || "Failed", true);
+        adminResult("Timer stopped");
+      });
+    });
+
+    markSoldBtn?.addEventListener("click", () => {
+      const itemId = Number(adminItemSelect.value);
+      const adminToken = adminPassword.value.trim();
+      socket.emit("admin:markSold", { itemId, adminToken }, (res) => {
+        if (!res?.ok) return adminResult(res?.error || "Failed", true);
+        adminResult("Item marked SOLD");
+      });
+    });
+
+    reopenBtn?.addEventListener("click", () => {
+      const itemId = Number(adminItemSelect.value);
+      const adminToken = adminPassword.value.trim();
+      socket.emit("admin:reopen", { itemId, adminToken }, (res) => {
+        if (!res?.ok) return adminResult(res?.error || "Failed", true);
+        adminResult("Item reopened");
+      });
+    });
+
+    setCurrentLotBtn?.addEventListener("click", () => {
+      const itemId = Number(adminItemSelect.value);
+      const adminToken = adminPassword.value.trim();
+      socket.emit("admin:setCurrentLot", { itemId, adminToken }, (res) => {
+        if (!res?.ok) return adminResult(res?.error || "Failed", true);
+        adminResult(`Current lot set to item #${res.currentLotId}`);
+      });
+    });
   </script>
 </body>
 </html>
