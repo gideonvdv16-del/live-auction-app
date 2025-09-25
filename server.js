@@ -6,21 +6,17 @@ const http = require("http").createServer(app);
 const { Server } = require("socket.io");
 const multer = require("multer");
 
-// ====== Config ======
 const io = new Server(http, { cors: { origin: "*" } });
 
-// IMPORTANT: admin password default = 1234 (can override in Render env var)
+// ====== Site-wide admin password (for creating/managing events) ======
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "1234";
-// Global minimum increment in R (0 to disable)
-let MIN_INCREMENT = Number(process.env.MIN_INCREMENT || 0);
 
-// Create uploads directory (ephemeral on Render, OK for MVP)
+// ====== File uploads (per-event images saved under /public/uploads/) ======
 const uploadDir = path.join(__dirname, "public", "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
+  filename: (_req, file, cb) => {
     const safeBase = String(file.originalname || "photo").replace(/[^\w.\-]+/g, "_");
     const unique = Date.now() + "-" + Math.round(Math.random() * 1e6);
     const ext = path.extname(safeBase) || ".jpg";
@@ -29,43 +25,61 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// ====== App & Static ======
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
-// ====== In-memory data ======
+// ====== In-memory store ======
+let nextEventId = 1;
 let nextItemId = 1;
-const items = [];
+
 /*
-each item = {
+Event shape:
+{
+  id, name, isProtected, password,
+  items: [item],               // items scoped to this event
+  minIncrement: number,        // 0 means disabled
+  currentLotId: number|null,
+  participants: Set<string>,   // bidder names currently in event
+  active: boolean              // for future use
+}
+
+Item shape:
+{
   id, title, description, openingBid,
   currentBid, currentWinner,
   bidHistory: [{name, amount, time}],
-  status: "open" | "sold" | "closed",
-  endTime: null | number, // epoch ms
-  imageUrl: null | string  // /uploads/filename.jpg
+  status: "open"|"sold"|"closed",
+  endTime: number|null,  // epoch ms
+  imageUrl: string|null
 }
 */
-let currentLotId = null; // projector "current lot"
+const events = [];
 
 // ====== Helpers ======
-function getItem(id) {
-  return items.find(i => i.id === Number(id));
+function getEvent(id) {
+  return events.find(e => e.id === Number(id));
+}
+function getItem(event, itemId) {
+  return event?.items.find(i => i.id === Number(itemId));
+}
+function isSiteAdmin(token) {
+  return ADMIN_TOKEN && String(token) === String(ADMIN_TOKEN);
 }
 
-function isAuthedAdminToken(token) {
-  return ADMIN_TOKEN && token && String(token) === String(ADMIN_TOKEN);
-}
-
-// CSV export
-app.get("/export.csv", (_req, res) => {
+// ====== CSV Export (per event) ======
+app.get("/export.csv", (req, res) => {
+  const eventId = Number(req.query.eventId);
+  const ev = getEvent(eventId);
+  if (!ev) return res.status(404).send("Event not found");
   const header = [
-    "id","title","description","openingBid",
+    "eventId","eventName","id","title","description","openingBid",
     "currentBid","currentWinner","status","totalBids"
   ].join(",");
-  const lines = items.map(it => {
+  const lines = ev.items.map(it => {
     const cols = [
+      ev.id,
+      `"${(ev.name||"").replace(/"/g,'""')}"`,
       it.id,
       `"${(it.title||"").replace(/"/g,'""')}"`,
       `"${(it.description||"").replace(/"/g,'""')}"`,
@@ -79,224 +93,343 @@ app.get("/export.csv", (_req, res) => {
   });
   const csv = [header, ...lines].join("\n");
   res.setHeader("Content-Type", "text/csv");
-  res.setHeader("Content-Disposition", "attachment; filename=auction_export.csv");
+  res.setHeader("Content-Disposition", `attachment; filename=auction_event_${ev.id}.csv`);
   res.send(csv);
 });
 
-// Simple health
-app.get("/healthz", (_req, res) => res.json({ ok: true }));
-
-// ========= Image upload (Admin only) =========
+// ====== Image upload (Admin only, site-wide admin token) ======
 app.post("/api/upload", upload.single("photo"), (req, res) => {
   const token = req.body?.adminToken;
-  if (!isAuthedAdminToken(token)) {
-    // clean up uploaded file if any
-    if (req.file && req.file.path) try { fs.unlinkSync(req.file.path); } catch {}
+  if (!isSiteAdmin(token)) {
+    if (req.file?.path) try { fs.unlinkSync(req.file.path); } catch {}
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
   if (!req.file) return res.status(400).json({ ok: false, error: "No file" });
-  const rel = "/uploads/" + path.basename(req.file.path);
-  return res.json({ ok: true, url: rel });
+  return res.json({ ok: true, url: "/uploads/" + path.basename(req.file.path) });
 });
 
-// ========= Socket.IO =========
-io.on("connection", (socket) => {
-  // role: 'admin' or 'bidder'
-  socket.data.role = "bidder"; // default
+// ====== Health ======
+app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
-  // Clients must call 'auth' after load
+// ====== Socket.IO ======
+io.on("connection", (socket) => {
+  // connection metadata
+  socket.data.role = "bidder";            // "admin" or "bidder"
+  socket.data.eventId = null;             // which event joined
+  socket.data.nameLocked = false;         // lock bidder name during active event
+  socket.data.displayName = null;
+
+  // --- Public: list events (never exposes passwords) ---
+  socket.on("events:list", (_, cb) => {
+    const listing = events.map(e => ({
+      id: e.id,
+      name: e.name,
+      isProtected: !!e.isProtected,
+      active: e.active,
+      itemCount: e.items.length
+    }));
+    cb && cb({ ok: true, events: listing });
+  });
+
+  // --- Site admin login (for creating/managing events) ---
   socket.on("auth", ({ role, password } = {}, cb) => {
     try {
       role = String(role || "").toLowerCase();
       if (role === "admin") {
-        if (!isAuthedAdminToken(password)) {
-          socket.data.role = "bidder";
-          throw new Error("Invalid admin password");
-        }
+        if (!isSiteAdmin(password)) throw new Error("Invalid admin password");
         socket.data.role = "admin";
       } else {
         socket.data.role = "bidder";
       }
       cb && cb({ ok: true, role: socket.data.role });
-      // On auth, send state
-      socket.emit("items", items);
-      socket.emit("configUpdated", { MIN_INCREMENT, currentLotId });
     } catch (e) {
       cb && cb({ ok: false, error: e.message });
     }
   });
 
-  socket.on("join", (name) => {
-    socket.data.displayName = String(name || "Anonymous").slice(0, 40);
+  // --- Bidder joins an event (with optional event password) & sets unique name ---
+  socket.on("event:join", ({ eventId, name, password } = {}, cb) => {
+    try {
+      const ev = getEvent(eventId);
+      if (!ev) throw new Error("Event not found");
+      if (ev.isProtected && String(password || "") !== String(ev.password)) {
+        throw new Error("Wrong event password");
+      }
+
+      name = String(name || "").trim();
+      if (!name) throw new Error("Please enter a name");
+
+      // Block renaming while active
+      if (socket.data.nameLocked && socket.data.displayName && socket.data.eventId === ev.id) {
+        if (name !== socket.data.displayName) throw new Error("Name cannot be changed during an active event");
+      }
+
+      // Enforce unique name within the event
+      if (!socket.data.nameLocked || socket.data.eventId !== ev.id || !socket.data.displayName) {
+        if (ev.participants.has(name)) throw new Error("That name is already taken in this event");
+      }
+
+      // Join room, register name
+      if (socket.data.eventId && socket.data.eventId !== ev.id) {
+        // leaving previous event room: remove old name
+        const prev = getEvent(socket.data.eventId);
+        if (prev && socket.data.displayName) prev.participants.delete(socket.data.displayName);
+        socket.leave("event_" + socket.data.eventId);
+      }
+
+      socket.join("event_" + ev.id);
+      socket.data.eventId = ev.id;
+      socket.data.displayName = name;
+      socket.data.nameLocked = true;  // lock now
+      ev.participants.add(name);
+
+      // Send scoped state
+      const payload = {
+        event: {
+          id: ev.id,
+          name: ev.name,
+          isProtected: ev.isProtected,
+          active: ev.active,
+          minIncrement: ev.minIncrement,
+          currentLotId: ev.currentLotId,
+        },
+        items: ev.items
+      };
+      cb && cb({ ok: true, ...payload });
+    } catch (e) {
+      cb && cb({ ok: false, error: e.message });
+    }
   });
 
-  // ===== Admin-only Actions =====
-  function requireAdmin(cb, tokenFromPayload) {
-    if (socket.data.role === "admin") return true;
-    // also allow admin token on payload for redundancy
-    if (isAuthedAdminToken(tokenFromPayload)) return true;
-    cb && cb({ ok: false, error: "Admin only" });
-    return false;
-  }
+  // Release name on disconnect
+  socket.on("disconnect", () => {
+    const ev = getEvent(socket.data.eventId);
+    if (ev && socket.data.displayName) {
+      ev.participants.delete(socket.data.displayName);
+    }
+  });
 
-  socket.on("createItem", (payload, cb) => {
-    if (!requireAdmin(cb, payload?.adminToken)) return;
+  // --- Admin: create event ---
+  socket.on("admin:createEvent", (payload, cb) => {
     try {
-      const title = String(payload?.title || "").trim();
-      const description = String(payload?.description || "").trim();
-      const openingBid = Number(payload?.openingBid);
-      const imageUrl = payload?.imageUrl ? String(payload.imageUrl) : null;
+      if (socket.data.role !== "admin") throw new Error("Admin only");
+      const name = String(payload?.name || "").trim();
+      const isProtected = !!payload?.isProtected;
+      const password = isProtected ? String(payload?.password || "") : "";
+      if (!name) throw new Error("Event name is required");
+      if (isProtected && !password) throw new Error("Password required for protected event");
+
+      const ev = {
+        id: nextEventId++,
+        name,
+        isProtected,
+        password,
+        items: [],
+        minIncrement: 0,
+        currentLotId: null,
+        participants: new Set(),
+        active: true
+      };
+      events.push(ev);
+
+      // broadcast event list update to all
+      io.emit("eventsUpdated", {
+        events: events.map(e => ({ id: e.id, name: e.name, isProtected: e.isProtected, active: e.active, itemCount: e.items.length }))
+      });
+
+      cb && cb({ ok: true, event: { id: ev.id, name: ev.name, isProtected: ev.isProtected } });
+    } catch (e) {
+      cb && cb({ ok: false, error: e.message });
+    }
+  });
+
+  // --- Admin: set per-event min increment ---
+  socket.on("admin:setMinIncrement", ({ eventId, value } = {}, cb) => {
+    try {
+      if (socket.data.role !== "admin") throw new Error("Admin only");
+      const ev = getEvent(eventId);
+      if (!ev) throw new Error("Event not found");
+      const v = Number(value);
+      if (!Number.isFinite(v) || v < 0) throw new Error("Value must be >= 0");
+      ev.minIncrement = v;
+      io.to("event_" + ev.id).emit("eventConfigUpdated", {
+        eventId: ev.id,
+        minIncrement: ev.minIncrement,
+        currentLotId: ev.currentLotId
+      });
+      cb && cb({ ok: true, minIncrement: ev.minIncrement });
+    } catch (e) { cb && cb({ ok: false, error: e.message }); }
+  });
+
+  // --- Admin: create item (with optional image) ---
+  socket.on("admin:createItem", ({ eventId, title, description, openingBid, imageUrl } = {}, cb) => {
+    try {
+      if (socket.data.role !== "admin") throw new Error("Admin only");
+      const ev = getEvent(eventId);
+      if (!ev) throw new Error("Event not found");
+
+      title = String(title || "").trim();
+      description = String(description || "").trim();
+      const open = Number(openingBid);
 
       if (!title) throw new Error("Title is required");
-      if (!Number.isFinite(openingBid) || openingBid < 0) throw new Error("Opening bid must be a number ≥ 0");
+      if (!Number.isFinite(open) || open < 0) throw new Error("Opening bid must be a number ≥ 0");
 
       const item = {
         id: nextItemId++,
         title,
         description,
-        openingBid,
-        currentBid: openingBid,
+        openingBid: open,
+        currentBid: open,
         currentWinner: null,
         bidHistory: [],
         status: "open",
         endTime: null,
-        imageUrl
+        imageUrl: imageUrl || null
       };
-      items.push(item);
-      io.emit("items", items);
+
+      ev.items.push(item);
+      io.to("event_" + ev.id).emit("items", ev.items);
       cb && cb({ ok: true, item });
-    } catch (err) {
-      cb && cb({ ok: false, error: err.message });
-    }
+    } catch (e) { cb && cb({ ok: false, error: e.message }); }
   });
 
-  socket.on("admin:setMinIncrement", (payload, cb) => {
-    if (!requireAdmin(cb, payload?.adminToken)) return;
-    const v = Number(payload?.value);
-    if (!Number.isFinite(v) || v < 0) return cb && cb({ ok: false, error: "Value must be >= 0" });
-    MIN_INCREMENT = v;
-    io.emit("configUpdated", { MIN_INCREMENT, currentLotId });
-    cb && cb({ ok: true, MIN_INCREMENT });
-  });
-
-  socket.on("admin:startTimer", (payload, cb) => {
-    if (!requireAdmin(cb, payload?.adminToken)) return;
-    const item = getItem(payload?.itemId);
-    const duration = Number(payload?.durationSeconds || 60);
-    if (!item) return cb && cb({ ok: false, error: "Item not found" });
-    if (item.status !== "open") return cb && cb({ ok: false, error: "Item not open" });
-    if (!Number.isFinite(duration) || duration <= 0) return cb && cb({ ok: false, error: "Bad duration" });
-    item.endTime = Date.now() + duration * 1000;
-    io.emit("itemUpdated", item);
-    cb && cb({ ok: true, item });
-  });
-
-  socket.on("admin:stopTimer", (payload, cb) => {
-    if (!requireAdmin(cb, payload?.adminToken)) return;
-    const item = getItem(payload?.itemId);
-    if (!item) return cb && cb({ ok: false, error: "Item not found" });
-    item.endTime = null;
-    io.emit("itemUpdated", item);
-    cb && cb({ ok: true, item });
-  });
-
-  socket.on("admin:markSold", (payload, cb) => {
-    if (!requireAdmin(cb, payload?.adminToken)) return;
-    const item = getItem(payload?.itemId);
-    if (!item) return cb && cb({ ok: false, error: "Item not found" });
-    item.status = "sold";
-    item.endTime = null;
-    io.emit("itemUpdated", item);
-    cb && cb({ ok: true, item });
-  });
-
-  socket.on("admin:reopen", (payload, cb) => {
-    if (!requireAdmin(cb, payload?.adminToken)) return;
-    const item = getItem(payload?.itemId);
-    if (!item) return cb && cb({ ok: false, error: "Item not found" });
-    item.status = "open";
-    if (item.endTime && Date.now() >= item.endTime) item.endTime = null;
-    io.emit("itemUpdated", item);
-    cb && cb({ ok: true, item });
-  });
-
-  socket.on("admin:setCurrentLot", (payload, cb) => {
-    if (!requireAdmin(cb, payload?.adminToken)) return;
-    const id = Number(payload?.itemId) || null;
-    if (id && !getItem(id)) return cb && cb({ ok: false, error: "Item not found" });
-    currentLotId = id;
-    io.emit("configUpdated", { MIN_INCREMENT, currentLotId });
-    cb && cb({ ok: true, currentLotId });
-  });
-
-  // ===== Public / Bidder actions =====
-  socket.on("getItems", () => socket.emit("items", items));
-
-  socket.on("placeBid", (payload, cb) => {
+  // --- Admin: timers & status per item ---
+  socket.on("admin:startTimer", ({ eventId, itemId, durationSeconds } = {}, cb) => {
     try {
-      // Only bidders can bid
-      if (socket.data.role !== "bidder") {
-        throw new Error("Only bidders can place bids.");
+      if (socket.data.role !== "admin") throw new Error("Admin only");
+      const ev = getEvent(eventId);
+      const item = getItem(ev, itemId);
+      if (!ev || !item) throw new Error("Not found");
+      if (item.status !== "open") throw new Error("Item not open");
+      const dur = Number(durationSeconds || 60);
+      if (!Number.isFinite(dur) || dur <= 0) throw new Error("Bad duration");
+      item.endTime = Date.now() + dur * 1000;
+      io.to("event_" + ev.id).emit("itemUpdated", item);
+      cb && cb({ ok: true });
+    } catch (e) { cb && cb({ ok: false, error: e.message }); }
+  });
+
+  socket.on("admin:stopTimer", ({ eventId, itemId } = {}, cb) => {
+    try {
+      if (socket.data.role !== "admin") throw new Error("Admin only");
+      const ev = getEvent(eventId);
+      const item = getItem(ev, itemId);
+      if (!ev || !item) throw new Error("Not found");
+      item.endTime = null;
+      io.to("event_" + ev.id).emit("itemUpdated", item);
+      cb && cb({ ok: true });
+    } catch (e) { cb && cb({ ok: false, error: e.message }); }
+  });
+
+  socket.on("admin:markSold", ({ eventId, itemId } = {}, cb) => {
+    try {
+      if (socket.data.role !== "admin") throw new Error("Admin only");
+      const ev = getEvent(eventId);
+      const item = getItem(ev, itemId);
+      if (!ev || !item) throw new Error("Not found");
+      item.status = "sold";
+      item.endTime = null;
+      io.to("event_" + ev.id).emit("itemUpdated", item);
+      cb && cb({ ok: true });
+    } catch (e) { cb && cb({ ok: false, error: e.message }); }
+  });
+
+  socket.on("admin:reopen", ({ eventId, itemId } = {}, cb) => {
+    try {
+      if (socket.data.role !== "admin") throw new Error("Admin only");
+      const ev = getEvent(eventId);
+      const item = getItem(ev, itemId);
+      if (!ev || !item) throw new Error("Not found");
+      item.status = "open";
+      if (item.endTime && Date.now() >= item.endTime) item.endTime = null;
+      io.to("event_" + ev.id).emit("itemUpdated", item);
+      cb && cb({ ok: true });
+    } catch (e) { cb && cb({ ok: false, error: e.message }); }
+  });
+
+  socket.on("admin:setCurrentLot", ({ eventId, itemId } = {}, cb) => {
+    try {
+      if (socket.data.role !== "admin") throw new Error("Admin only");
+      const ev = getEvent(eventId);
+      if (!ev) throw new Error("Event not found");
+      if (itemId && !getItem(ev, itemId)) throw new Error("Item not found");
+      ev.currentLotId = itemId || null;
+      io.to("event_" + ev.id).emit("eventConfigUpdated", {
+        eventId: ev.id,
+        minIncrement: ev.minIncrement,
+        currentLotId: ev.currentLotId
+      });
+      cb && cb({ ok: true, currentLotId: ev.currentLotId });
+    } catch (e) { cb && cb({ ok: false, error: e.message }); }
+  });
+
+  // --- Bidders: place bid (event-scoped) ---
+  socket.on("placeBid", ({ eventId, itemId, amount, name } = {}, cb) => {
+    try {
+      // Must be bidder
+      if (socket.data.role !== "bidder") throw new Error("Only bidders can place bids");
+      const ev = getEvent(eventId);
+      const item = getItem(ev, itemId);
+      if (!ev || !item) throw new Error("Not found");
+
+      // Must be joined to the event
+      if (socket.data.eventId !== ev.id) throw new Error("Join the event first");
+
+      // Enforce locked name
+      const effectiveName = socket.data.displayName || String(name || "Anonymous").slice(0, 40);
+      if (!socket.data.nameLocked || effectiveName !== socket.data.displayName) {
+        throw new Error("Your name is locked for this event");
       }
-      const itemId = Number(payload?.itemId);
-      const amount = Number(payload?.amount);
-      const name = socket.data.displayName || String(payload?.name || "Anonymous").slice(0, 40);
 
-      const item = getItem(itemId);
-      if (!item) throw new Error("Item not found");
-
-      if (item.status !== "open") {
-        throw new Error(`Bidding is closed (${item.status}).`);
-      }
-
+      if (item.status !== "open") throw new Error(`Bidding is closed (${item.status}).`);
       if (item.endTime && Date.now() >= item.endTime) {
         item.status = "closed";
-        io.emit("itemUpdated", item);
+        io.to("event_" + ev.id).emit("itemUpdated", item);
         throw new Error("Time is up—bidding closed.");
       }
 
+      amount = Number(amount);
       if (!Number.isFinite(amount) || amount <= 0) throw new Error("Bid amount must be a positive number");
 
       const minAcceptable = Math.max(item.openingBid, item.currentBid);
-      let required = minAcceptable + (MIN_INCREMENT || 0);
-      if (MIN_INCREMENT === 0) required = minAcceptable + Number.EPSILON;
-
+      let required = minAcceptable + (ev.minIncrement || 0);
+      if (ev.minIncrement === 0) required = minAcceptable + Number.EPSILON;
       if (amount < required) {
-        if (MIN_INCREMENT > 0) {
-          throw new Error(`Bid must be at least R${MIN_INCREMENT.toFixed(2)} higher (>= R${required.toFixed(2)}).`);
-        } else {
-          throw new Error(`Bid must be greater than current bid (R${minAcceptable.toFixed(2)}).`);
-        }
+        if (ev.minIncrement > 0) throw new Error(`Bid must be at least R${ev.minIncrement.toFixed(2)} higher (>= R${required.toFixed(2)}).`);
+        else throw new Error(`Bid must be greater than current bid (R${minAcceptable.toFixed(2)}).`);
       }
 
+      // Update
       item.currentBid = amount;
-      item.currentWinner = name;
-      item.bidHistory.push({ name, amount, time: Date.now() });
+      item.currentWinner = effectiveName;
+      item.bidHistory.push({ name: effectiveName, amount, time: Date.now() });
 
-      io.emit("itemUpdated", item);
-      cb && cb({ ok: true, item });
-    } catch (err) {
-      cb && cb({ ok: false, error: err.message });
-    }
+      io.to("event_" + ev.id).emit("itemUpdated", item);
+      cb && cb({ ok: true });
+    } catch (e) { cb && cb({ ok: false, error: e.message }); }
   });
 });
 
-// Timer expiry loop
+// ====== Timer expiry per event ======
 setInterval(() => {
   const now = Date.now();
-  let changed = false;
-  for (const item of items) {
-    if (item.status === "open" && item.endTime && now >= item.endTime) {
-      item.status = "closed";
-      item.endTime = null;
-      changed = true;
+  for (const ev of events) {
+    let changed = false;
+    for (const item of ev.items) {
+      if (item.status === "open" && item.endTime && now >= item.endTime) {
+        item.status = "closed";
+        item.endTime = null;
+        changed = true;
+      }
     }
+    if (changed) io.to("event_" + ev.id).emit("items", ev.items);
   }
-  if (changed) io.emit("items", items);
 }, 1000);
 
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {
   console.log(`Auction server listening on http://localhost:${PORT}`);
 });
+
 

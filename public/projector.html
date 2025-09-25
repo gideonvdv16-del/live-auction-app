@@ -28,8 +28,17 @@
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
+    const params = new URLSearchParams(location.search);
+    const eventId = Number(params.get("eventId"));
     let items = [];
     let currentLotId = null;
+
+    if (!eventId) {
+      document.getElementById("content").innerHTML = `<div class="muted">Missing ?eventId=…</div>`;
+    } else {
+      // join as bidder (no name needed for projector view) just to receive state
+      socket.emit("event:join", { eventId, name: "Projector" }, () => {});
+    }
 
     function render() {
       const c = document.getElementById("content");
@@ -72,13 +81,11 @@
       if (idx >= 0) items[idx] = item; else items.push(item);
       render();
     });
-    socket.on("configUpdated", (cfg) => {
-      currentLotId = cfg?.currentLotId ?? null;
+    socket.on("eventConfigUpdated", (cfg) => {
+      if (cfg?.eventId !== eventId) return;
+      currentLotId = cfg.currentLotId ?? currentLotId;
       render();
     });
-
-    // Authenticate as viewer/bidder (no admin rights, ensures server sends state)
-    socket.emit("auth", { role: "bidder" }, () => {});
   </script>
 </body>
 </html>
