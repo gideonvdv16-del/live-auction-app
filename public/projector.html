@@ -36,7 +36,7 @@
     if (!eventId) {
       document.getElementById("content").innerHTML = `<div class="muted">Missing ?eventId=…</div>`;
     } else {
-      // join as bidder (no name needed for projector view) just to receive state
+      // Join just to receive state (will claim name "Projector"; that's fine)
       socket.emit("event:join", { eventId, name: "Projector" }, () => {});
     }
 
@@ -89,3 +89,4 @@
   </script>
 </body>
 </html>
+

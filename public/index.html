@@ -303,7 +303,7 @@
       socket.emit("admin:createEvent", { name, isProtected, password }, (res) => {
         if (!res?.ok) { createEventMsg.textContent = res?.error || "Failed"; return; }
         createEventMsg.textContent = `Created event #${res.event.id}`;
-        // auto-focus fields for convenience
+        // auto-prepare to manage / join
         joinEventId.value = res.event.id;
         joinEventPw.value = isProtected ? password : "";
         adminEventId.value = res.event.id;
@@ -324,7 +324,7 @@
       window.open(`/export.csv?eventId=${encodeURIComponent(currentEvent.id)}`, "_blank");
     });
 
-    // Name persistence (used for display only; server locks name when joining)
+    // Name persistence (local, for convenience)
     saveNameBtn.addEventListener("click", () => {
       const name = displayNameInput.value.trim() || "Anonymous";
       localStorage.setItem("auctionDisplayName", name);
@@ -421,7 +421,7 @@
       }[c])) || "";
     }
 
-    // ===== File upload (admin, site admin token reused as entered password) =====
+    // ===== File upload (admin, uses entered admin password as token) =====
     uploadPhotoBtn?.addEventListener("click", async () => {
       if (!photoFile.files[0]) return photoMsg.textContent = "Choose a file first";
       photoMsg.textContent = "Uploading...";
@@ -513,13 +513,13 @@
       setTimeout(() => adminMsg.textContent = "", 2000);
     }
 
-    // ===== Bidding (bidder only; server enforces) =====
+    // ===== Bidding (bidder only; server enforces locked names) =====
     bidBtn.addEventListener("click", () => {
       bidError.textContent = "";
       if (!currentEvent?.id) { bidError.textContent = "Join an event first"; return; }
       const id = Number(itemSelect.value);
       const amount = Number(bidAmount.value);
-      const name = (displayNameInput.value || "").trim() || "Anonymous"; // for UX; server uses locked name
+      const name = (displayNameInput.value || "").trim() || "Anonymous"; // UX only; server checks locked name
       socket.emit("placeBid", { eventId: currentEvent.id, itemId: id, amount, name }, (res) => {
         if (!res?.ok) bidError.textContent = res?.error || "Unknown error";
         else bidAmount.value = "";

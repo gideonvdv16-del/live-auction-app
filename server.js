@@ -15,7 +15,7 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "1234";
 const uploadDir = path.join(__dirname, "public", "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
+  destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => {
     const safeBase = String(file.originalname || "photo").replace(/[^\w.\-]+/g, "_");
     const unique = Date.now() + "-" + Math.round(Math.random() * 1e6);
@@ -41,7 +41,7 @@ Event shape:
   minIncrement: number,        // 0 means disabled
   currentLotId: number|null,
   participants: Set<string>,   // bidder names currently in event
-  active: boolean              // for future use
+  active: boolean              // reserved for future use
 }
 
 Item shape:
@@ -431,5 +431,4 @@ const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {
   console.log(`Auction server listening on http://localhost:${PORT}`);
 });
-
 

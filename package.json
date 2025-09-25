@@ -1,15 +1,14 @@
 {
   "name": "live-auction-app",
   "version": "1.0.0",
-  "description": "Simple live auction platform for small events",
+  "description": "Multi-event live auction (Node.js + Express + Socket.IO)",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.19.2",
-    "socket.io": "^4.7.5",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^1.4.5-lts.1",
+    "socket.io": "^4.7.5"
   }
 }
