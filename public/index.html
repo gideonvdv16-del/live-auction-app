@@ -2,43 +2,148 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Live Auction</title>
+  <title>AuctionSavannah</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-    body { margin: 0; background: #0f172a; color: #e5e7eb; }
-    header { padding: 16px 20px; background: #111827; display: flex; align-items: center; gap: 12px; }
-    h1 { margin: 0; font-size: 20px; }
-    main { display: grid; grid-template-columns: 1fr 380px; gap: 16px; padding: 16px; }
-    .card { background: #111827; border: 1px solid #1f2937; border-radius: 14px; padding: 16px; }
-    .item { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 12px; border: 1px solid #1f2937; border-radius: 12px; margin-bottom: 10px; background: #0b1220; }
-    .muted { color: #94a3b8; font-size: 12px; }
-    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    input, button, select, textarea {
-      background: #0b1220; color: #e5e7eb; border: 1px solid #1f2937; border-radius: 10px; padding: 10px 12px;
+    :root{
+      /* Savannah palette */
+      --bg:#0d0a07;         /* deep earthy */
+      --panel:#17120d;
+      --ink:#f5f2ec;
+      --muted:#b8a899;
+      --line:#2a2219;
+      --accent:#c8a46b;     /* tannin / khaki */
+      --accent2:#6b5132;    /* dark brown */
+      --btn:#1b1510;
+      --ok:#10b981;
+      --warn:#f59e0b;
+      --err:#ef4444;
     }
-    button { cursor: pointer; }
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .list { max-height: 70vh; overflow: auto; padding-right: 4px; }
-    small { color: #94a3b8; }
-    .pill { background:#1f2937; padding:4px 8px; border-radius:999px; font-size:12px; }
-    .img { width: 90px; height: 70px; object-fit: cover; border-radius: 8px; border: 1px solid #1f2937; }
-    .section-title { margin: 8px 0 6px; }
-    #adminOnly, #eventArea { display: none; }
+    *{box-sizing:border-box}
+    body{margin:0;background: radial-gradient(1200px 800px at 70% -10%, #1e160f 0%, var(--bg) 60%), var(--bg); color:var(--ink);
+         font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+    a{color:inherit}
+    header{padding:16px 20px; display:flex; align-items:center; gap:12px; background: #120e0a; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5}
+    .brand{font-family:"Playfair Display",serif; font-weight:800; letter-spacing:.3px; font-size:18px}
+    .pill{background:#221a13; border:1px solid var(--line); padding:6px 10px; border-radius:999px; font-size:12px; color:var(--muted)}
+    main{display:grid; grid-template-columns: 1fr 390px; gap:16px; padding:16px}
+    .card{background: var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px}
+    .item{display:grid; grid-template-columns: 1fr auto; gap:8px; padding:12px; border:1px solid var(--line); border-radius:12px; margin-bottom:10px; background:#0f0c09}
+    .muted{color:var(--muted); font-size:12px}
+    input, button, select, textarea{background:#0f0c09; color:var(--ink); border:1px solid var(--line); border-radius:12px; padding:10px 12px}
+    button{cursor:pointer}
+    .grid-2{display:grid; grid-template-columns: 1fr 1fr; gap:8px}
+    .list{max-height:70vh; overflow:auto; padding-right:4px}
+    .img{width:90px; height:70px; object-fit:cover; border-radius:8px; border:1px solid var(--line)}
+    .section-title{margin:8px 0 6px}
+    .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+    .button{appearance:none; background:linear-gradient(180deg, rgba(200,164,107,.18), rgba(200,164,107,.06)); border:1px solid #3a2f10; color:#f3e8d1; padding:18px 22px; border-radius:16px; font-weight:700}
+    .button.alt{background:#0f0c09; color:var(--ink)}
+    .button:hover{filter:brightness(1.05)}
+    hr{border-color:var(--line)}
+
+    /* Landing */
+    #landing{position:fixed; inset:0; background:
+      radial-gradient(1200px 800px at 50% -20%, rgba(200,164,107,.20), transparent 60%),
+      radial-gradient(800px 600px at 110% 30%, rgba(107,81,50,.18), transparent 70%),
+      var(--bg);
+      display:grid; place-items:center; z-index:10}
+    .land-card{max-width:980px; width:92vw; background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0)), var(--panel); border:1px solid var(--line); border-radius:22px; padding:42px; box-shadow:0 20px 80px rgba(0,0,0,.45)}
+    h1.hero{font-family:"Playfair Display",serif; font-size:clamp(34px,6vw,64px); margin:0 0 8px}
+    .lead{color:var(--muted); font-size:clamp(15px,2.5vw,18px); margin-bottom:18px}
+    .bigrow{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+    @media (max-width:720px){.bigrow{grid-template-columns:1fr}}
+    .bigbtn{appearance:none; border:1px solid var(--line); border-radius:18px; padding:26px 26px; font-weight:800; font-size:20px; cursor:pointer; background:linear-gradient(180deg, rgba(200,164,107,.12), rgba(200,164,107,.06))}
+    .bigbtn.host{background:linear-gradient(180deg, rgba(107,81,50,.18), rgba(107,81,50,.08))}
+    .bigbtn:hover{transform:translateY(-1px)}
+    .tags{display:flex; gap:10px; flex-wrap:wrap; color:var(--muted); margin-top:14px}
+    .tag{border:1px dashed var(--line); border-radius:999px; padding:6px 10px; font-size:12px}
+
+    /* Modal */
+    .modal{position:fixed; inset:0; background:rgba(0,0,0,.7); display:none; align-items:center; justify-content:center; z-index:20}
+    .modal .card{width:min(520px,92vw)}
+    .hint{font-size:12px; color:var(--muted)}
+    .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
+
+    /* Payment bar for winner */
+    #payBar{display:none; position:sticky; top:0; z-index:6; background:#1a140f; border-bottom:1px solid var(--line); padding:10px 16px; }
   </style>
 </head>
 <body>
   <header>
-    <h1>Live Auction</h1>
-    <span class="pill">Multi-Event</span>
+    <div class="brand">AuctionSavannah</div>
+    <span class="pill">Wildlife & Game Auctions</span>
     <div class="row" style="margin-left:auto;">
-      <label for="displayName"><small>Your name:</small></label>
-      <input id="displayName" placeholder="e.g. Gideon" />
-      <button id="saveNameBtn">Save</button>
-      <button id="projectorBtn" style="display:none;">Projector View</button>
-      <button id="exportBtn" style="display:none;">Export CSV</button>
+      <label for="displayName"><small class="muted">Display name:</small></label>
+      <input id="displayName" placeholder="e.g. KuduKing" />
+      <button id="saveNameBtn" class="button alt">Save</button>
+      <button id="projectorBtn" class="button alt" style="display:none;">Projector</button>
+      <button id="exportBtn" class="button alt" style="display:none;">Export CSV</button>
     </div>
   </header>
+
+  <!-- Winner payment bar -->
+  <div id="payBar">
+    <div class="row">
+      <strong>Payment required</strong>
+      <span id="payBarMsg" class="muted"></span>
+      <span id="payCountdown" class="pill"></span>
+      <button id="confirmPayBtn" class="button">Confirm &amp; Pay (mock)</button>
+      <span class="hint">No real payments processed. Test data only.</span>
+    </div>
+  </div>
+
+  <!-- Landing overlay -->
+  <div id="landing">
+    <div class="land-card">
+      <h1 class="hero">Bid on the best of the savannah.</h1>
+      <p class="lead">Professional wildlife & game auctions. Real-time bidding, event locations, and deliveries.</p>
+      <div class="bigrow">
+        <button class="bigbtn" id="chooseBidder">I’m a Bidder</button>
+        <button class="bigbtn host" id="chooseHost">I’m a Host</button>
+      </div>
+      <div class="tags" style="margin-top:18px;">
+        <span class="tag">Antelope • Kudu • Buffalo</span>
+        <span class="tag">Realtime bidding</span>
+        <span class="tag">Event locations</span>
+        <span class="tag">Delivery addresses</span>
+        <span class="tag">2-min payment confirmation</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment Profile modal (required before anything else) -->
+  <div id="payModal" class="modal">
+    <div class="card">
+      <h3 id="payTitle">Set up your payment profile</h3>
+      <p class="hint">Test details only — do <strong>not</strong> enter real card numbers. No real payments occur.</p>
+      <div class="grid-2" style="margin-top:6px;">
+        <input id="ppName" placeholder="Full name" />
+        <input id="ppEmail" placeholder="Email" />
+      </div>
+      <div id="ppDeliveryRow" style="margin-top:8px;">
+        <input id="ppDelivery" placeholder="Delivery address (for bidders)" />
+      </div>
+      <div class="grid-2" style="margin-top:8px;">
+        <input id="ppCard" placeholder="Card (test) 4242 4242 4242 4242" />
+        <input id="ppExp" placeholder="MM/YY" />
+      </div>
+      <div class="grid-2" style="margin-top:8px;">
+        <input id="ppCvc" placeholder="CVC" />
+        <input id="ppZip" placeholder="Postal code" />
+      </div>
+
+      <div id="hostPwRow" class="row" style="margin-top:8px; display:none;">
+        <input id="hostPassword" placeholder="Host password (1234)" />
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <button id="ppSave" class="button">Continue</button>
+        <span id="ppMsg" class="muted"></span>
+      </div>
+    </div>
+  </div>
 
   <main>
     <section class="card">
@@ -48,107 +153,102 @@
     </section>
 
     <section class="card">
-      <h2>Join / Create Events</h2>
-      <div class="row">
-        <label><input type="radio" name="role" value="bidder" checked /> Bidder</label>
-        <label><input type="radio" name="role" value="admin" /> Admin</label>
-      </div>
-      <div id="adminPwRow" class="row" style="display:none;">
-        <input id="adminPassword" placeholder="Admin password (1234)" />
-        <button id="loginAdminBtn">Login as Admin</button>
-        <span id="adminLoginMsg" class="muted"></span>
-      </div>
+      <h2>Join / Host Events</h2>
 
       <h3 class="section-title">Available Events</h3>
-      <div id="eventsList" class="list" style="max-height: 200px;"></div>
+      <div id="eventsList" class="list" style="max-height:200px;"></div>
       <div class="grid-2" style="margin-top:8px;">
         <input id="joinEventId" type="number" placeholder="Event ID" />
         <input id="joinEventPw" placeholder="Event password (if protected)" />
       </div>
       <div class="row" style="margin-top:8px;">
         <input id="joinName" placeholder="Your bidder name" />
-        <button id="joinBtn">Join Event</button>
+        <button id="joinBtn" class="button">Join Event</button>
         <span id="joinMsg" class="muted"></span>
       </div>
 
-      <div id="adminOnly" style="margin-top:16px;">
-        <hr style="border-color:#1f2937;margin:16px 0;" />
-        <h3>Create Event (Admin)</h3>
-        <input id="newEventName" placeholder="Event name" />
-        <div class="row" style="margin-top:8px;">
-          <label><input type="checkbox" id="newEventProtected" /> Password protected</label>
-          <input id="newEventPassword" placeholder="Event password" />
+      <div id="hostArea" style="margin-top:16px; display:none;">
+        <hr />
+        <h3>Create Event (Host)</h3>
+        <input id="newEventName" placeholder="Event name (e.g., Spring Game Auction)" />
+        <div class="grid-2" style="margin-top:8px;">
+          <input id="newEventLocation" placeholder="Event location (farm, reserve, GPS, etc.)" />
+          <label class="row" style="gap:8px;">
+            <input type="checkbox" id="newEventProtected" /> Password protected
+          </label>
         </div>
+        <input id="newEventPassword" placeholder="Event password (if protected)" style="margin-top:8px;" />
         <div class="row" style="margin-top:8px;">
-          <button id="createEventBtn">Create Event</button>
+          <button id="createEventBtn" class="button">Create Event</button>
           <span id="createEventMsg" class="muted"></span>
         </div>
 
-        <div id="eventArea" style="margin-top:16px;">
-          <hr style="border-color:#1f2937;margin:16px 0;" />
+        <div id="manageArea" style="margin-top:16px; display:none;">
+          <hr />
           <h3>Manage Current Event</h3>
           <div class="row">
-            <label>Event ID:</label>
+            <label>Event:</label>
             <input id="adminEventId" readonly />
             <span id="adminEventName" class="pill"></span>
+            <span id="adminEventLoc" class="pill"></span>
           </div>
 
           <h4 style="margin-top:10px;">Add Item</h4>
           <div class="grid-2" style="margin-top:8px;">
-            <input id="newTitle" placeholder="Item title" />
+            <input id="newTitle" placeholder="Item title (e.g., Kudu cow)" />
             <input id="newOpeningBid" type="number" min="0" step="1" placeholder="Opening bid (R)" />
           </div>
-          <textarea id="newDesc" rows="3" placeholder="Description (optional)" style="margin-top:8px;"></textarea>
+          <textarea id="newDesc" rows="3" placeholder="Description (e.g., live weight, age, notes)" style="margin-top:8px;"></textarea>
           <div class="row" style="margin-top:8px;">
             <input id="photoFile" type="file" accept="image/*" />
-            <button id="uploadPhotoBtn">Upload Photo</button>
+            <button id="uploadPhotoBtn" class="button alt">Upload Photo</button>
             <span id="photoMsg" class="muted"></span>
           </div>
           <div class="row" style="margin-top:8px;">
-            <button id="addItemBtn">Add Item</button>
+            <button id="addItemBtn" class="button">Add Item</button>
             <span id="addItemMsg" class="muted"></span>
           </div>
 
           <h4 class="section-title">Global Min Increment (event)</h4>
           <div class="row">
             <input id="minIncrement" type="number" min="0" step="1" placeholder="Min increment (R)" />
-            <button id="saveMinIncBtn">Save</button>
+            <button id="saveMinIncBtn" class="button alt">Save</button>
           </div>
 
           <h4 class="section-title">Item Controls</h4>
           <div class="row">
-            <label for="adminItemSelect"><small>Item:</small></label>
+            <label for="adminItemSelect"><small class="muted">Item:</small></label>
             <select id="adminItemSelect"></select>
           </div>
           <div class="row" style="margin-top:8px;">
-            <button data-dur="60" id="start60">Start 60s</button>
-            <button data-dur="120" id="start120">Start 120s</button>
-            <button id="stopTimer">Stop Timer</button>
+            <button data-dur="60" id="start60" class="button alt">Start 60s</button>
+            <button data-dur="120" id="start120" class="button alt">Start 120s</button>
+            <button id="stopTimer" class="button alt">Stop Timer</button>
           </div>
           <div class="row" style="margin-top:8px;">
-            <button id="markSold">Mark Sold</button>
-            <button id="reopen">Reopen</button>
+            <button id="markSold" class="button">Mark Sold</button>
+            <button id="reopen" class="button alt">Reopen</button>
           </div>
 
           <h4 class="section-title">Projector / Export</h4>
           <div class="row">
-            <button id="setCurrentLot">Set Current Lot to Selected</button>
+            <button id="setCurrentLot" class="button alt">Set Current Lot</button>
           </div>
         </div>
-        <span id="adminMsg" class="muted"></span>
+        <span id="hostMsg" class="muted"></span>
       </div>
 
-      <hr style="border-color:#1f2937;margin:16px 0;" />
+      <hr />
       <h3>Bid Panel</h3>
       <div class="row">
-        <label for="itemSelect"><small>Item:</small></label>
+        <label for="itemSelect"><small class="muted">Item:</small></label>
         <select id="itemSelect"></select>
       </div>
       <div class="row" style="margin-top:8px;">
         <input id="bidAmount" type="number" step="1" min="0" placeholder="Enter your bid (R)" />
-        <button id="bidBtn">Place Bid</button>
+        <button id="bidBtn" class="button">Place Bid</button>
       </div>
-      <p id="bidError" style="color:#fca5a5;min-height:20px;"></p>
+      <p id="bidError" style="color:#ef9a9a;min-height:20px;"></p>
     </section>
   </main>
 
@@ -156,17 +256,38 @@
   <script>
     const socket = io();
 
+    // State
+    let role = "guest"; // "bidder" | "host" | "guest"
+    let currentEvent = null;
+    let items = [];
+    let uploadedImageUrl = null;
+
     // DOM refs
+    const landing = document.getElementById("landing");
+    const chooseBidder = document.getElementById("chooseBidder");
+    const chooseHost = document.getElementById("chooseHost");
+    const payModal = document.getElementById("payModal");
+    const payTitle = document.getElementById("payTitle");
+    const hostPwRow = document.getElementById("hostPwRow");
+    const hostPassword = document.getElementById("hostPassword");
+    const ppName = document.getElementById("ppName");
+    const ppEmail = document.getElementById("ppEmail");
+    const ppDeliveryRow = document.getElementById("ppDeliveryRow");
+    const ppDelivery = document.getElementById("ppDelivery");
+    const ppCard = document.getElementById("ppCard"); // mock
+    const ppExp = document.getElementById("ppExp");
+    const ppCvc = document.getElementById("ppCvc");
+    const ppZip = document.getElementById("ppZip");
+    const ppSave = document.getElementById("ppSave");
+    const ppMsg = document.getElementById("ppMsg");
+
     const itemsDiv = document.getElementById("items");
     const eventsList = document.getElementById("eventsList");
     const eventInfo = document.getElementById("eventInfo");
-
-    const roleRadios = document.querySelectorAll("input[name='role']");
-    const adminPwRow = document.getElementById("adminPwRow");
-    const adminPassword = document.getElementById("adminPassword");
-    const loginAdminBtn = document.getElementById("loginAdminBtn");
-    const adminLoginMsg = document.getElementById("adminLoginMsg");
-    const adminOnly = document.getElementById("adminOnly");
+    const displayNameInput = document.getElementById("displayName");
+    const saveNameBtn = document.getElementById("saveNameBtn");
+    const projectorBtn = document.getElementById("projectorBtn");
+    const exportBtn = document.getElementById("exportBtn");
 
     const joinEventId = document.getElementById("joinEventId");
     const joinEventPw = document.getElementById("joinEventPw");
@@ -174,29 +295,31 @@
     const joinBtn = document.getElementById("joinBtn");
     const joinMsg = document.getElementById("joinMsg");
 
-    const adminEventId = document.getElementById("adminEventId");
-    const adminEventName = document.getElementById("adminEventName");
-    const eventArea = document.getElementById("eventArea");
-
-    const displayNameInput = document.getElementById("displayName");
-    const saveNameBtn = document.getElementById("saveNameBtn");
-    const projectorBtn = document.getElementById("projectorBtn");
-    const exportBtn = document.getElementById("exportBtn");
-
+    const hostArea = document.getElementById("hostArea");
+    const manageArea = document.getElementById("manageArea");
     const newEventName = document.getElementById("newEventName");
+    const newEventLocation = document.getElementById("newEventLocation");
     const newEventProtected = document.getElementById("newEventProtected");
     const newEventPassword = document.getElementById("newEventPassword");
     const createEventBtn = document.getElementById("createEventBtn");
     const createEventMsg = document.getElementById("createEventMsg");
 
+    const adminEventId = document.getElementById("adminEventId");
+    const adminEventName = document.getElementById("adminEventName");
+    const adminEventLoc = document.getElementById("adminEventLoc");
+
     const newTitle = document.getElementById("newTitle");
     const newOpeningBid = document.getElementById("newOpeningBid");
     const newDesc = document.getElementById("newDesc");
+    const uploadPhotoBtn = document.getElementById("uploadPhotoBtn");
+    const photoFile = document.getElementById("photoFile");
+    const photoMsg = document.getElementById("photoMsg");
     const addItemBtn = document.getElementById("addItemBtn");
     const addItemMsg = document.getElementById("addItemMsg");
 
     const minIncrement = document.getElementById("minIncrement");
     const saveMinIncBtn = document.getElementById("saveMinIncBtn");
+
     const adminItemSelect = document.getElementById("adminItemSelect");
     const start60 = document.getElementById("start60");
     const start120 = document.getElementById("start120");
@@ -204,44 +327,73 @@
     const markSoldBtn = document.getElementById("markSold");
     const reopenBtn = document.getElementById("reopen");
     const setCurrentLotBtn = document.getElementById("setCurrentLot");
-    const adminMsg = document.getElementById("adminMsg");
-
-    const photoFile = document.getElementById("photoFile");
-    const uploadPhotoBtn = document.getElementById("uploadPhotoBtn");
-    const photoMsg = document.getElementById("photoMsg");
+    const hostMsg = document.getElementById("hostMsg");
 
     const itemSelect = document.getElementById("itemSelect");
     const bidAmount = document.getElementById("bidAmount");
     const bidBtn = document.getElementById("bidBtn");
     const bidError = document.getElementById("bidError");
 
-    // State
-    let role = "bidder";
-    let currentEvent = null; // {id, name, isProtected, minIncrement, currentLotId}
-    let items = [];
-    let uploadedImageUrl = null;
+    // Winner payment bar
+    const payBar = document.getElementById("payBar");
+    const payBarMsg = document.getElementById("payBarMsg");
+    const payCountdown = document.getElementById("payCountdown");
+    const confirmPayBtn = document.getElementById("confirmPayBtn");
 
-    // Role toggling
-    roleRadios.forEach(r => r.addEventListener("change", () => {
-      role = document.querySelector("input[name='role']:checked").value;
-      adminPwRow.style.display = role === "admin" ? "flex" : "none";
-      if (role !== "admin") { adminOnly.style.display = "none"; }
-    }));
+    // Landing interactions
+    chooseBidder.addEventListener("click", () => {
+      role = "bidder";
+      payTitle.textContent = "Bidder — set up your payment profile";
+      ppDeliveryRow.style.display = "block";
+      hostPwRow.style.display = "none";
+      payModal.style.display = "flex";
+    });
+    chooseHost.addEventListener("click", () => {
+      role = "host";
+      payTitle.textContent = "Host — set up your payment profile";
+      ppDeliveryRow.style.display = "none";
+      hostPwRow.style.display = "flex";
+      payModal.style.display = "flex";
+    });
 
-    // Admin login
-    loginAdminBtn.addEventListener("click", () => {
-      const password = adminPassword.value.trim();
-      socket.emit("auth", { role: "admin", password }, (res) => {
-        if (!res?.ok) {
-          adminLoginMsg.textContent = res?.error || "Login failed";
-          return;
-        }
-        adminOnly.style.display = "block";
-        adminLoginMsg.textContent = "Admin logged in ✓";
+    ppSave.addEventListener("click", () => {
+      ppMsg.textContent = "";
+      const name = ppName.value.trim();
+      const email = ppEmail.value.trim();
+      const deliveryAddress = ppDelivery.value.trim();
+      const cardLast4 = (ppCard.value.trim().replace(/\s+/g,"").slice(-4) || "4242");
+
+      // Auth role first
+      socket.emit("auth", { role: role, password: hostPassword.value.trim() }, (res) => {
+        if (!res?.ok) { ppMsg.textContent = res?.error || "Auth failed"; return; }
+        // Save profile (masked)
+        socket.emit("profile:setup", { name, email, cardLast4, deliveryAddress }, (r2) => {
+          if (!r2?.ok) { ppMsg.textContent = r2?.error || "Profile failed"; return; }
+          // Save display name UI
+          displayNameInput.value = name;
+          localStorage.setItem("auctionDisplayName", name);
+          // Hide landing
+          payModal.style.display = "none";
+          landing.style.display = "none";
+          // Show role-specific areas
+          if (role === "host") hostArea.style.display = "block";
+        });
       });
     });
 
-    // List events on load & when updated
+    // Name convenience (still stored locally; real lock happens per event)
+    saveNameBtn.addEventListener("click", () => {
+      const name = displayNameInput.value.trim() || "Anonymous";
+      localStorage.setItem("auctionDisplayName", name);
+      saveNameBtn.textContent = "Saved";
+      setTimeout(() => (saveNameBtn.textContent = "Save"), 1200);
+    });
+    (function initName(){
+      const saved = localStorage.getItem("auctionDisplayName");
+      if (saved) displayNameInput.value = saved;
+    })();
+
+    // Events list
     function renderEventList(list) {
       eventsList.innerHTML = "";
       if (!list?.length) {
@@ -254,9 +406,9 @@
         div.innerHTML = `
           <div>
             <div><strong>${escapeHtml(e.name)}</strong> <span class="pill">ID: ${e.id}</span></div>
-            <div class="muted">${e.isProtected ? "Password protected" : "Open to all"} · Items: ${e.itemCount}</div>
+            <div class="muted">${e.isProtected ? "Password protected" : "Open to all"} · Items: ${e.itemCount} · <strong>Location:</strong> ${escapeHtml(e.location||"")}</div>
           </div>
-          <div class="row"><button data-id="${e.id}" class="fillBtn">Fill ID</button></div>
+          <div class="row"><button data-id="${e.id}" class="button alt fillBtn">Fill ID</button></div>
         `;
         eventsList.appendChild(div);
       });
@@ -268,26 +420,22 @@
       });
     }
 
-    socket.emit("events:list", null, (res) => {
-      if (res?.ok) renderEventList(res.events);
-    });
+    socket.emit("events:list", null, (res) => { if (res?.ok) renderEventList(res.events); });
     socket.on("eventsUpdated", (payload) => renderEventList(payload.events));
 
-    // Join event as bidder
+    // Join event (bidder)
     joinBtn.addEventListener("click", () => {
+      joinMsg.textContent = "";
+      if (role !== "bidder") { joinMsg.textContent = "Switch to Bidder on landing"; return; }
       const id = Number(joinEventId.value);
       const pw = joinEventPw.value.trim();
-      const nm = (joinName.value || "").trim();
+      const nm = (joinName.value || "").trim() || (displayNameInput.value || "").trim();
       if (!id) { joinMsg.textContent = "Enter event ID"; return; }
       if (!nm) { joinMsg.textContent = "Enter your bidder name"; return; }
       socket.emit("event:join", { eventId: id, name: nm, password: pw }, (res) => {
         if (!res?.ok) { joinMsg.textContent = res?.error || "Failed to join"; return; }
         currentEvent = res.event;
         items = res.items || [];
-        joinMsg.textContent = "Joined ✓ (name locked)";
-        eventArea.style.display = (role === "admin") ? "block" : "none";
-        adminEventId.value = String(currentEvent.id);
-        adminEventName.textContent = currentEvent.name;
         projectorBtn.style.display = "inline-block";
         exportBtn.style.display = "inline-block";
         renderItems();
@@ -295,26 +443,26 @@
       });
     });
 
-    // Create event (admin)
+    // Host: create event (requires location)
     createEventBtn.addEventListener("click", () => {
+      if (role !== "host") { createEventMsg.textContent = "Login as Host first"; return; }
       const name = newEventName.value.trim();
+      const location = newEventLocation.value.trim();
       const isProtected = newEventProtected.checked;
       const password = newEventPassword.value.trim();
-      socket.emit("admin:createEvent", { name, isProtected, password }, (res) => {
+      socket.emit("host:createEvent", { name, location, isProtected, password }, (res) => {
         if (!res?.ok) { createEventMsg.textContent = res?.error || "Failed"; return; }
         createEventMsg.textContent = `Created event #${res.event.id}`;
-        // auto-prepare to manage / join
-        joinEventId.value = res.event.id;
-        joinEventPw.value = isProtected ? password : "";
-        adminEventId.value = res.event.id;
-        adminEventName.textContent = name;
-        eventArea.style.display = "block";
-        currentEvent = { id: res.event.id, name, isProtected, minIncrement: 0, currentLotId: null };
+        manageArea.style.display = "block";
+        adminEventId.value = String(res.event.id);
+        adminEventName.textContent = res.event.name;
+        adminEventLoc.textContent = res.event.location;
+        currentEvent = { id: res.event.id, name: res.event.name, location: res.event.location, minIncrement: 0, currentLotId: null };
         setTimeout(() => createEventMsg.textContent = "", 2000);
       });
     });
 
-    // Projector & Export buttons (depend on currentEvent)
+    // Projector / Export
     projectorBtn.addEventListener("click", () => {
       if (!currentEvent?.id) return alert("Join an event first");
       window.open(`/projector.html?eventId=${encodeURIComponent(currentEvent.id)}`, "_blank");
@@ -324,59 +472,164 @@
       window.open(`/export.csv?eventId=${encodeURIComponent(currentEvent.id)}`, "_blank");
     });
 
-    // Name persistence (local, for convenience)
-    saveNameBtn.addEventListener("click", () => {
-      const name = displayNameInput.value.trim() || "Anonymous";
-      localStorage.setItem("auctionDisplayName", name);
-      saveNameBtn.textContent = "Saved";
-      setTimeout(() => (saveNameBtn.textContent = "Save"), 1200);
+    // Upload photo (host)
+    uploadPhotoBtn?.addEventListener("click", async () => {
+      if (!photoFile.files[0]) { photoMsg.textContent = "Choose a file first"; return; }
+      photoMsg.textContent = "Uploading...";
+      // For upload auth, reuse host password typed in modal (if you want tighter control, add an input here)
+      const fd = new FormData();
+      fd.append("photo", photoFile.files[0]);
+      fd.append("adminToken", document.getElementById("hostPassword").value.trim());
+      try {
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Upload failed");
+        uploadedImageUrl = data.url;
+        photoMsg.textContent = "Uploaded ✓";
+      } catch (e) { photoMsg.textContent = "Error: " + e.message; }
     });
-    (function initName() {
-      const saved = localStorage.getItem("auctionDisplayName");
-      if (saved) displayNameInput.value = saved;
-    })();
 
-    // ===== Items UI =====
-    function renderItems() {
+    // Add item (host)
+    addItemBtn?.addEventListener("click", () => {
+      if (!currentEvent?.id) return (addItemMsg.textContent = "Create or join event first");
+      const title = newTitle.value.trim();
+      const openingBid = Number(newOpeningBid.value);
+      const description = newDesc.value.trim();
+      socket.emit("host:createItem", { eventId: currentEvent.id, title, description, openingBid, imageUrl: uploadedImageUrl }, (res) => {
+        if (!res?.ok) return (addItemMsg.textContent = res?.error || "Failed");
+        newTitle.value = ""; newOpeningBid.value = ""; newDesc.value = "";
+        uploadedImageUrl = null; photoFile.value = ""; photoMsg.textContent = "";
+        addItemMsg.textContent = "Item added.";
+        setTimeout(() => addItemMsg.textContent = "", 1500);
+      });
+    });
+
+    // Min increment (host)
+    saveMinIncBtn?.addEventListener("click", () => {
+      if (!currentEvent?.id) return;
+      const v = Number(minIncrement.value);
+      socket.emit("host:setMinIncrement", { eventId: currentEvent.id, value: v }, (res) => {
+        if (!res?.ok) return hostMsgResult(res?.error || "Failed", true);
+        currentEvent.minIncrement = res.minIncrement;
+        hostMsgResult(`Min increment set: R${Number(res.minIncrement).toFixed(2)}`);
+        updateEventInfo();
+      });
+    });
+
+    // Timer & status (host)
+    [start60, start120].forEach(btn => btn?.addEventListener("click", () => {
+      const dur = Number(btn.getAttribute("data-dur"));
+      const itemId = Number(adminItemSelect.value);
+      socket.emit("host:startTimer", { eventId: currentEvent.id, itemId, durationSeconds: dur }, (res) => {
+        if (!res?.ok) return hostMsgResult(res?.error || "Failed", true);
+        hostMsgResult(`Timer started: ${dur}s`);
+      });
+    }));
+    stopTimerBtn?.addEventListener("click", () => {
+      const itemId = Number(adminItemSelect.value);
+      socket.emit("host:stopTimer", { eventId: currentEvent.id, itemId }, (res) => {
+        if (!res?.ok) return hostMsgResult(res?.error || "Failed", true);
+        hostMsgResult("Timer stopped");
+      });
+    });
+    markSoldBtn?.addEventListener("click", () => {
+      const itemId = Number(adminItemSelect.value);
+      socket.emit("host:markSold", { eventId: currentEvent.id, itemId }, (res) => {
+        if (!res?.ok) return hostMsgResult(res?.error || "Failed", true);
+        hostMsgResult("Item marked SOLD — payment window started");
+      });
+    });
+    reopenBtn?.addEventListener("click", () => {
+      const itemId = Number(adminItemSelect.value);
+      socket.emit("host:reopen", { eventId: currentEvent.id, itemId }, (res) => {
+        if (!res?.ok) return hostMsgResult(res?.error || "Failed", true);
+        hostMsgResult("Item reopened");
+      });
+    });
+    setCurrentLotBtn?.addEventListener("click", () => {
+      const itemId = Number(adminItemSelect.value);
+      socket.emit("host:setCurrentLot", { eventId: currentEvent.id, itemId }, (res) => {
+        if (!res?.ok) return hostMsgResult(res?.error || "Failed", true);
+        hostMsgResult(`Current lot set to item #${res.currentLotId}`);
+      });
+    });
+
+    function hostMsgResult(msg, isError=false) {
+      hostMsg.textContent = msg;
+      hostMsg.style.color = isError ? "#ef9a9a" : "#b8a899";
+      setTimeout(() => hostMsg.textContent = "", 2000);
+    }
+
+    // Bidding
+    bidBtn.addEventListener("click", () => {
+      bidError.textContent = "";
+      if (role !== "bidder") { bidError.textContent = "Switch to Bidder"; return; }
+      if (!currentEvent?.id) { bidError.textContent = "Join an event first"; return; }
+      const id = Number(itemSelect.value);
+      const amount = Number(bidAmount.value);
+      const name = (displayNameInput.value || "").trim() || "Anonymous";
+      socket.emit("placeBid", { eventId: currentEvent.id, itemId: id, amount, name }, (res) => {
+        if (!res?.ok) bidError.textContent = res?.error || "Unknown error";
+        else bidAmount.value = "";
+      });
+    });
+
+    // Live updates
+    socket.on("items", (serverItems) => { items = serverItems; renderItems(); maybeShowPaymentBar(); });
+    socket.on("itemUpdated", (item) => {
+      const idx = items.findIndex(i => i.id === item.id);
+      if (idx >= 0) items[idx] = item; else items.push(item);
+      renderItems(); maybeShowPaymentBar();
+    });
+    socket.on("eventConfigUpdated", (cfg) => {
+      if (!currentEvent || cfg.eventId !== currentEvent.id) return;
+      currentEvent.minIncrement = cfg.minIncrement ?? currentEvent.minIncrement;
+      currentEvent.currentLotId = cfg.currentLotId ?? currentEvent.currentLotId;
+      updateEventInfo();
+      renderItems();
+    });
+
+    // Render helpers
+    function renderItems(){
       itemsDiv.innerHTML = "";
       itemSelect.innerHTML = "";
       adminItemSelect.innerHTML = "";
-
       items.forEach(item => {
         const el = document.createElement("div");
         el.className = "item";
         const timeLeft = item.endTime ? `<span class="timeleft" data-id="${item.id}"></span>` : "";
         const photo = item.imageUrl ? `<img class="img" src="${item.imageUrl}" alt="photo">` : "";
+        const payTag = renderPayTag(item);
 
         el.innerHTML = `
           <div>
             <div class="row" style="gap:12px;">${photo}
               <div>
-                <div><strong>${escapeHtml(item.title)}</strong> ${currentEvent?.currentLotId === item.id ? '<span class="pill">Current Lot</span>' : ''}</div>
+                <div><strong>${escapeHtml(item.title)}</strong> ${currentEvent?.currentLotId === item.id ? '<span class="pill">Current Lot</span>' : ''} ${payTag}</div>
                 <div class="muted">${escapeHtml(item.description || "")}</div>
               </div>
             </div>
             <div style="margin-top:6px;">
-              <small>
-                Status: <strong>${escapeHtml(item.status)}</strong>
-                ${item.endTime ? ` | Time left: ${timeLeft}` : ""}
-              </small>
+              <small> Status: <strong>${escapeHtml(item.status)}</strong>
+                ${item.endTime ? ` | Time left: ${timeLeft}` : ""} </small>
             </div>
             <div style="margin-top:6px;">
               <small>Opening: R${num(item.openingBid)} | Current: <strong>R${num(item.currentBid)}</strong> ${item.currentWinner ? `by ${escapeHtml(item.currentWinner)}` : ""}</small>
             </div>
           </div>
           <div class="row">
-            <button data-id="${item.id}" class="chooseBtn">Select</button>
+            <button data-id="${item.id}" class="button alt chooseBtn">Select</button>
           </div>
         `;
         itemsDiv.appendChild(el);
 
+        // Bid panel option
         const opt = document.createElement("option");
         opt.value = item.id;
         opt.textContent = `${item.title} (R${num(item.currentBid)})`;
         itemSelect.appendChild(opt);
 
+        // Host controls select
         const opt2 = document.createElement("option");
         opt2.value = item.id;
         opt2.textContent = `${item.title} (R${num(item.currentBid)} | ${item.status})`;
@@ -393,6 +646,14 @@
       renderCountdowns();
     }
 
+    function renderPayTag(item){
+      if (item.status !== "sold") return "";
+      if (item.paymentStatus === "pending") return ` <span class="pill">Payment: pending</span>`;
+      if (item.paymentStatus === "confirmed") return ` <span class="pill" style="color:#22c55e;border-color:#2b3b2d;background:#122012">Payment: confirmed</span>`;
+      if (item.paymentStatus === "expired") return ` <span class="pill" style="color:#f59e0b;border-color:#3a2f10;background:#1a140f">Payment: expired</span>`;
+      return "";
+    }
+
     function renderCountdowns() {
       const nodes = document.querySelectorAll(".timeleft");
       const now = Date.now();
@@ -406,148 +667,52 @@
     }
     setInterval(renderCountdowns, 500);
 
-    function updateEventInfo() {
-      if (!currentEvent) {
-        eventInfo.textContent = "Join an event to begin.";
-        return;
+    function updateEventInfo(){
+      if (!currentEvent) { eventInfo.textContent = "Join an event to begin."; return; }
+      eventInfo.textContent = `Event #${currentEvent.id} — ${currentEvent.name} — Location: ${currentEvent.location || "n/a"} — Min increment: R${num(currentEvent.minIncrement || 0)}`;
+    }
+
+    // Winner payment bar logic
+    function maybeShowPaymentBar(){
+      if (role !== "bidder" || !currentEvent) { payBar.style.display="none"; return; }
+      const me = (displayNameInput.value || "").trim();
+      const pending = items.find(it =>
+        it.status === "sold" &&
+        it.paymentStatus === "pending" &&
+        it.paymentWinnerName === me
+      );
+      if (!pending) { payBar.style.display = "none"; return; }
+
+      payBar.style.display = "block";
+      payBarMsg.textContent = `You won “${pending.title}”. Confirm within 2 minutes.`;
+      updatePayCountdown(pending);
+      confirmPayBtn.onclick = () => {
+        socket.emit("payment:confirm", { eventId: currentEvent.id, itemId: pending.id }, (res) => {
+          if (!res?.ok) { alert(res?.error || "Payment failed"); return; }
+        });
+      };
+    }
+
+    function updatePayCountdown(item){
+      function tick(){
+        const it = items.find(i => i.id === item.id);
+        if (!it || it.paymentStatus !== "pending" || !it.paymentDueAt) { payCountdown.textContent = ""; return; }
+        const ms = it.paymentDueAt - Date.now();
+        const left = Math.max(0, Math.ceil(ms/1000));
+        const mm = String(Math.floor(left/60)).padStart(2,"0");
+        const ss = String(left%60).padStart(2,"0");
+        payCountdown.textContent = `⏱ ${mm}:${ss}`;
+        if (left === 0) setTimeout(()=>maybeShowPaymentBar(), 600);
       }
-      eventInfo.textContent = `Event #${currentEvent.id} — ${currentEvent.name} — Min increment: R${num(currentEvent.minIncrement || 0)}`;
+      tick();
+      const id = setInterval(tick, 500);
+      setTimeout(()=>clearInterval(id), 2*60*1000 + 2000);
     }
-
-    function num(n) { return Number(n).toFixed(2); }
-    function escapeHtml(s) {
-      return s?.replace(/[&<>"']/g, (c) => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-      }[c])) || "";
-    }
-
-    // ===== File upload (admin, uses entered admin password as token) =====
-    uploadPhotoBtn?.addEventListener("click", async () => {
-      if (!photoFile.files[0]) return photoMsg.textContent = "Choose a file first";
-      photoMsg.textContent = "Uploading...";
-      const fd = new FormData();
-      fd.append("photo", photoFile.files[0]);
-      fd.append("adminToken", adminPassword.value.trim());
-      try {
-        const res = await fetch("/api/upload", { method: "POST", body: fd });
-        const data = await res.json();
-        if (!data.ok) throw new Error(data.error || "Upload failed");
-        uploadedImageUrl = data.url;
-        photoMsg.textContent = "Uploaded ✓";
-      } catch (e) {
-        photoMsg.textContent = "Error: " + e.message;
-      }
-    });
-
-    // ===== Add item (admin) =====
-    addItemBtn?.addEventListener("click", () => {
-      if (!currentEvent?.id) return (addItemMsg.textContent = "Join an event first");
-      const title = newTitle.value.trim();
-      const openingBid = Number(newOpeningBid.value);
-      const description = newDesc.value.trim();
-
-      socket.emit("admin:createItem", {
-        eventId: currentEvent.id,
-        title, description, openingBid,
-        imageUrl: uploadedImageUrl
-      }, (res) => {
-        if (!res?.ok) return (addItemMsg.textContent = res?.error || "Failed");
-        newTitle.value = ""; newOpeningBid.value = ""; newDesc.value = "";
-        uploadedImageUrl = null; photoFile.value = ""; photoMsg.textContent = "";
-        addItemMsg.textContent = "Item added.";
-        setTimeout(() => addItemMsg.textContent = "", 1500);
-      });
-    });
-
-    // ===== Min increment (admin) =====
-    saveMinIncBtn?.addEventListener("click", () => {
-      if (!currentEvent?.id) return;
-      const v = Number(minIncrement.value);
-      socket.emit("admin:setMinIncrement", { eventId: currentEvent.id, value: v }, (res) => {
-        if (!res?.ok) return adminMsgResult(res?.error || "Failed", true);
-        adminMsgResult(`Min increment set to R${Number(res.minIncrement).toFixed(2)}`);
-      });
-    });
-
-    // ===== Timer & status (admin) =====
-    [start60, start120].forEach(btn => btn?.addEventListener("click", () => {
-      const dur = Number(btn.getAttribute("data-dur"));
-      const itemId = Number(adminItemSelect.value);
-      socket.emit("admin:startTimer", { eventId: currentEvent.id, itemId, durationSeconds: dur }, (res) => {
-        if (!res?.ok) return adminMsgResult(res?.error || "Failed", true);
-        adminMsgResult(`Timer started: ${dur}s`);
-      });
-    }));
-    stopTimerBtn?.addEventListener("click", () => {
-      const itemId = Number(adminItemSelect.value);
-      socket.emit("admin:stopTimer", { eventId: currentEvent.id, itemId }, (res) => {
-        if (!res?.ok) return adminMsgResult(res?.error || "Failed", true);
-        adminMsgResult("Timer stopped");
-      });
-    });
-    markSoldBtn?.addEventListener("click", () => {
-      const itemId = Number(adminItemSelect.value);
-      socket.emit("admin:markSold", { eventId: currentEvent.id, itemId }, (res) => {
-        if (!res?.ok) return adminMsgResult(res?.error || "Failed", true);
-        adminMsgResult("Item marked SOLD");
-      });
-    });
-    reopenBtn?.addEventListener("click", () => {
-      const itemId = Number(adminItemSelect.value);
-      socket.emit("admin:reopen", { eventId: currentEvent.id, itemId }, (res) => {
-        if (!res?.ok) return adminMsgResult(res?.error || "Failed", true);
-        adminMsgResult("Item reopened");
-      });
-    });
-    setCurrentLotBtn?.addEventListener("click", () => {
-      const itemId = Number(adminItemSelect.value);
-      socket.emit("admin:setCurrentLot", { eventId: currentEvent.id, itemId }, (res) => {
-        if (!res?.ok) return adminMsgResult(res?.error || "Failed", true);
-        adminMsgResult(`Current lot set to item #${res.currentLotId}`);
-      });
-    });
-
-    function adminMsgResult(msg, isError=false) {
-      adminMsg.textContent = msg;
-      adminMsg.style.color = isError ? "#fca5a5" : "#94a3b8";
-      setTimeout(() => adminMsg.textContent = "", 2000);
-    }
-
-    // ===== Bidding (bidder only; server enforces locked names) =====
-    bidBtn.addEventListener("click", () => {
-      bidError.textContent = "";
-      if (!currentEvent?.id) { bidError.textContent = "Join an event first"; return; }
-      const id = Number(itemSelect.value);
-      const amount = Number(bidAmount.value);
-      const name = (displayNameInput.value || "").trim() || "Anonymous"; // UX only; server checks locked name
-      socket.emit("placeBid", { eventId: currentEvent.id, itemId: id, amount, name }, (res) => {
-        if (!res?.ok) bidError.textContent = res?.error || "Unknown error";
-        else bidAmount.value = "";
-      });
-    });
-
-    // ===== Socket updates within the joined event =====
-    socket.on("items", (serverItems) => { items = serverItems; renderItems(); });
-    socket.on("itemUpdated", (item) => {
-      const idx = items.findIndex(i => i.id === item.id);
-      if (idx >= 0) items[idx] = item; else items.push(item);
-      renderItems();
-    });
-    socket.on("eventConfigUpdated", (cfg) => {
-      if (!currentEvent || cfg.eventId !== currentEvent.id) return;
-      currentEvent.minIncrement = cfg.minIncrement ?? currentEvent.minIncrement;
-      currentEvent.currentLotId = cfg.currentLotId ?? currentEvent.currentLotId;
-      updateEventInfo();
-      renderItems();
-    });
 
     // Utils
-    function escapeHtml(s) {
-      return s?.replace(/[&<>"']/g, (c) => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-      }[c])) || "";
-    }
-    function num(n) { return Number(n).toFixed(2); }
+    function escapeHtml(s){ return s?.replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;", ">":"&gt;", '"':"&quot;","'":"&#39;" }[c])) || ""; }
+    function num(n){ return Number(n).toFixed(2); }
   </script>
 </body>
 </html>
+
